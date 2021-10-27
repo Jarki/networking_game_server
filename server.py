@@ -47,8 +47,14 @@
 #
 #         print(f'handled the request in {end - start}ms')
 #         conn.sendall(data)
+import logging
 
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 from game_server import GameServer
+from player import Player
 
-gm = GameServer()
+gm = GameServer('127.0.0.1', 65432)
+
+gm.connect_players((Player(128, "Anne"), Player(129, "Bob")))

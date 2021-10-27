@@ -1,6 +1,5 @@
 class Player:
-    def __init__(self, addr, p_id=-1, nickname=""):
-        self.addr = addr
+    def __init__(self, p_id=-1, nickname=""):
         self.p_id = p_id
         self.nickname = nickname
 

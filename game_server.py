@@ -6,8 +6,9 @@ import player
 
 
 class GameServer:
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self, host: str = '', port: int = 0) -> None:
         self.port = self.__create_server(host, port)
+        logging.debug(f"Raised on port {self.port}")
 
         self.players = []
         self.player_data = []
@@ -28,13 +29,18 @@ class GameServer:
         return self.port
 
     def connect_players(self, players: tuple) -> None:  # a tuple of Player objects
+        logging.debug(f"Waiting for {len(players)} players")
+
         if len(players) > self.max_players:
             logging.warning(f"Tried to connect more players than allowed (allowed: {self.max_players}, tried to "
                             f"connect: {len(players)}")
             return
 
-        for i in range(1, len(players)):
+        for i in range(0, len(players)):
             player, addr = self.server.accept()  # accept a connection from a client
+
+            logging.debug(f"Received a connection from address: {addr}, player: {players[i].get_name()}")
+
             self.players.append(player)  # add the connection to a list
             self.player_data.append(players[i])
 
@@ -54,7 +60,9 @@ class GameServer:
             if not data:
                 break
 
-            self.add_to_log(f"player {player_name} says: {data}")
+            action = f"player {player_name} says: {data}"
+
+            self.add_to_log(str.encode(action))
 
         player_conn.close()
 
