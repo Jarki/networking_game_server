@@ -52,7 +52,8 @@ class GameServer:
         self.send_updates_to_players()
 
     def receive_updates_from_player(self, player_conn: socket.socket, player_name) -> None:
-        player_conn.sendall(b'ye have connected')
+        connected = f'Player {player_name} has connected'
+        player_conn.sendall(str.encode(connected))
 
         while True:
             data = player_conn.recv(1024)
@@ -60,7 +61,7 @@ class GameServer:
             if not data:
                 break
 
-            action = f"player {player_name} says: {data}"
+            action = f"Player {player_name} says: {data}"
 
             self.add_to_log(str.encode(action))
 
