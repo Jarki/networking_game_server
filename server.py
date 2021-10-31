@@ -58,4 +58,4 @@ logger.setLevel(logging.DEBUG)
 
 gs = GameServer('127.0.0.1', 65432)
 
-gs.connect_players((Player(128, "Anne"), Player(129, "Bob")))
+gs.wait_for_players()

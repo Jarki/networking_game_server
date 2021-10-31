@@ -2,7 +2,7 @@ import socket
 import threading
 import logging
 
-import player
+from player import Player
 
 
 class GameServer:
@@ -55,8 +55,14 @@ class GameServer:
             if player_conn.recv(1024) != b'want connect':
                 continue
 
-            player_conn.sendall(b'')
-            self.players.append(player)
+            player_conn.sendall(b'connected')
+            player_data = player_conn.recv(1024)
+
+            self.players.append(player_conn)
+            self.add_to_log(str.encode(f'Player {player_data} has connected'))
+
+            self.player_data.append(player_data)
+            threading.Thread(target=self.receive_updates_from_player, args=(player_conn, player_data)).start()
 
     def add_to_log(self, update):
         self.log.append(update)
@@ -64,9 +70,6 @@ class GameServer:
         self.send_updates_to_players()
 
     def receive_updates_from_player(self, player_conn: socket.socket, player_name) -> None:
-        connected = f'Player {player_name} has connected'
-        player_conn.sendall(str.encode(connected))
-
         while True:
             data = player_conn.recv(1024)
 
