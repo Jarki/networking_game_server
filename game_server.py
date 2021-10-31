@@ -28,23 +28,35 @@ class GameServer:
     def get_server_port(self) -> int:
         return self.port
 
-    def connect_players(self, players: tuple) -> None:  # a tuple of Player objects
-        logging.debug(f"Waiting for {len(players)} players")
+    # def connect_players(self, players: tuple) -> None:  # a tuple of Player objects
+    #     logging.debug(f"Waiting for {len(players)} players")
+    #
+    #     if len(players) > self.max_players:
+    #         logging.warning(f"Tried to connect more players than allowed (allowed: {self.max_players}, tried to "
+    #                         f"connect: {len(players)}")
+    #         return
+    #
+    #     for i in range(0, len(players)):
+    #         player, addr = self.server.accept()  # accept a connection from a client
+    #
+    #         logging.debug(f"Received a connection from address: {addr}, player: {players[i].get_name()}")
+    #
+    #         self.players.append(player)  # add the connection to a list
+    #         self.player_data.append(players[i])
+    #
+    #         threading.Thread(target=self.receive_updates_from_player, args=(player, players[i].get_name())).start()
 
-        if len(players) > self.max_players:
-            logging.warning(f"Tried to connect more players than allowed (allowed: {self.max_players}, tried to "
-                            f"connect: {len(players)}")
-            return
+    def wait_for_players(self):
+        logging.debug(f'Waiting for {self.max_players} players')
 
-        for i in range(0, len(players)):
-            player, addr = self.server.accept()  # accept a connection from a client
+        while self.max_players - len(self.players):
+            player_conn, addr = self.server.accept()
 
-            logging.debug(f"Received a connection from address: {addr}, player: {players[i].get_name()}")
+            if player_conn.recv(1024) != b'want connect':
+                continue
 
-            self.players.append(player)  # add the connection to a list
-            self.player_data.append(players[i])
-
-            threading.Thread(target=self.receive_updates_from_player, args=(player, players[i].get_name())).start()
+            player_conn.sendall(b'')
+            self.players.append(player)
 
     def add_to_log(self, update):
         self.log.append(update)
