@@ -1,7 +1,23 @@
-class Player:
-    def __init__(self, p_id=-1, nickname=""):
-        self.p_id = p_id
-        self.nickname = nickname
+import logging
 
-    def get_name(self):
-        return self.nickname
+
+class Player:
+    def __init__(self, name=""):
+        self.name = name
+
+        self.connection = None
+
+        self.has_reconnected = False
+
+    def record_reconnection(self):
+        self.has_reconnected = True
+
+    def store_connection(self, conn):
+        logging.debug(f'New connection stored: {conn}')
+        self.connection = conn
+
+    def is_connected(self):
+        return self.connection is not None
+
+    def to_string(self):
+        return f'{self.name}'

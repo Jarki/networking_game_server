@@ -11,7 +11,6 @@ class GameServer:
         logging.debug(f"Raised on port {self.port}")
 
         self.players = []
-        self.player_data = []
 
         self.log = []
 
@@ -46,42 +45,119 @@ class GameServer:
     #
     #         threading.Thread(target=self.receive_updates_from_player, args=(player, players[i].get_name())).start()
 
+    def handle_connection(self, player_connection, addr):
+        logging.debug(f'Accepted a connection from {addr}')
+
+        if player_connection.recv(1024) != b'want connect':
+            return
+
+        player_connection.sendall(b'connected')
+        player_data = player_connection.recv(1024)
+
+        player = Player(player_data)
+        player.store_connection(player_connection)
+
+        existing_player = self.__get_player_in_game(player)
+        if existing_player is not None:
+            logging.debug(f'Player {player.name} is already in game')
+            if not self.__is_player_connected(player):
+                logging.debug(f'Player {player.name} is not connected')
+                existing_player.store_connection(player_connection)
+                self.handle_reconnect(existing_player)
+
+            return
+
+        if self.__is_full():
+            return
+
+        self.players.append(player)
+
+        msg = f'Player {player.name} has connected'
+
+        logging.debug(msg)
+        self.add_to_log(msg)
+
+        threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
+
     def wait_for_players(self):
         logging.debug(f'Waiting for {self.max_players} players')
 
-        while self.max_players - len(self.players):
+        while True:
             player_conn, addr = self.server.accept()
 
-            if player_conn.recv(1024) != b'want connect':
-                continue
+            self.handle_connection(player_conn, addr)
 
-            player_conn.sendall(b'connected')
-            player_data = player_conn.recv(1024)
-
-            self.players.append(player_conn)
-            self.add_to_log(str.encode(f'Player {player_data} has connected'))
-
-            self.player_data.append(player_data)
-            threading.Thread(target=self.receive_updates_from_player, args=(player_conn, player_data)).start()
-
-    def add_to_log(self, update):
-        self.log.append(update)
+    def add_to_log(self, update: str):
+        self.log.append(str.encode(update))
 
         self.send_updates_to_players()
 
-    def receive_updates_from_player(self, player_conn: socket.socket, player_name) -> None:
+    def receive_updates_from_player(self, player: Player) -> None:
         while True:
-            data = player_conn.recv(1024)
+            try:
+                data = player.connection.recv(1024)
+                if not data:
+                    break
 
-            if not data:
-                break
+                action = f"Player {player.name} says: {data}"
 
-            action = f"Player {player_name} says: {data}"
+                logging.debug(action)
+                self.add_to_log(action)
+            except ConnectionResetError:
+                player.store_connection(None)
 
-            self.add_to_log(str.encode(action))
+                msg = f'Player {player.name} has disconnected. They have 60 seconds to reconnect.'
 
-        player_conn.close()
+                logging.debug(msg)
+                self.add_to_log(msg)
+
+                return
+                # th = threading.Thread(target=self.wait_for_reconnect, args=[player])
+                # th.start()
+                # th.join(60.0)
+
+                # if not player.is_connected():
+                #     # player did not reconnect, end the game
+                #     logging.debug(f'Player {player.name} did not reconnect')
+                #     self.add_to_log(f'Player {player.name} did not reconnect')
+                #     return
+
+        player.connection.close()
+
+    def __get_player_in_game(self, target_player: Player) -> Player:
+        for player in self.players:
+            if player.name == target_player.name:
+                return player
+
+        return
+
+    def __is_player_connected(self, target_player: Player):
+        for player in self.players:
+            if player.name == target_player.name:
+                return player.is_connected()
+
+        return
+
+    def __is_full(self):
+        return not (self.max_players - len(self.players)) # if full, max - len(players) will be 0, not 0 = True
+
+    def handle_reconnect(self, player: Player):
+        msg = f'Player {player.name} has reconnected'
+
+        logging.debug(msg)
+        self.add_to_log(msg)
+
+        threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
+
+            # player_wants_rejoin = player_conn.recv(1024)
+            #
+            # if player_wants_rejoin == b'No':
+            #     return
+
+            #player.connection = player_conn
 
     def send_updates_to_players(self):
         for player in self.players:
-            player.sendall(self.log[-1])
+            if player.is_connected():
+                print(f'sending a message to player {player.name}')
+                player.connection.sendall(self.log[-1])
