@@ -27,24 +27,6 @@ class GameServer:
     def get_server_port(self) -> int:
         return self.port
 
-    # def connect_players(self, players: tuple) -> None:  # a tuple of Player objects
-    #     logging.debug(f"Waiting for {len(players)} players")
-    #
-    #     if len(players) > self.max_players:
-    #         logging.warning(f"Tried to connect more players than allowed (allowed: {self.max_players}, tried to "
-    #                         f"connect: {len(players)}")
-    #         return
-    #
-    #     for i in range(0, len(players)):
-    #         player, addr = self.server.accept()  # accept a connection from a client
-    #
-    #         logging.debug(f"Received a connection from address: {addr}, player: {players[i].get_name()}")
-    #
-    #         self.players.append(player)  # add the connection to a list
-    #         self.player_data.append(players[i])
-    #
-    #         threading.Thread(target=self.receive_updates_from_player, args=(player, players[i].get_name())).start()
-
     def handle_connection(self, player_connection, addr):
         logging.debug(f'Accepted a connection from {addr}')
 
@@ -112,18 +94,10 @@ class GameServer:
                 self.add_to_log(msg)
 
                 return
-                # th = threading.Thread(target=self.wait_for_reconnect, args=[player])
-                # th.start()
-                # th.join(60.0)
-
-                # if not player.is_connected():
-                #     # player did not reconnect, end the game
-                #     logging.debug(f'Player {player.name} did not reconnect')
-                #     self.add_to_log(f'Player {player.name} did not reconnect')
-                #     return
 
         player.connection.close()
 
+    # functions to access certain players
     def __get_player_in_game(self, target_player: Player) -> Player:
         for player in self.players:
             if player.name == target_player.name:
@@ -148,13 +122,6 @@ class GameServer:
         self.add_to_log(msg)
 
         threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
-
-            # player_wants_rejoin = player_conn.recv(1024)
-            #
-            # if player_wants_rejoin == b'No':
-            #     return
-
-            #player.connection = player_conn
 
     def send_updates_to_players(self):
         for player in self.players:
