@@ -3,6 +3,7 @@ import threading
 import logging
 
 from player import Player
+from update import Update
 
 
 class GameServer:
@@ -10,13 +11,15 @@ class GameServer:
         self.port = self.__create_server(host, port)
         logging.debug(f"Raised on port {self.port}")
 
-        self.players = []
+        self.players: list[Player] = []
 
-        self.log = []
+        self.log: list[Update] = []
 
         self.max_players = 2
+        self.players_connected = 0
 
     # server functions
+
     def __create_server(self, host: str = '', port: int = 0) -> int:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind((host, port))
@@ -24,19 +27,28 @@ class GameServer:
 
         return self.server.getsockname()[1]
 
-    def get_server_port(self) -> int:
-        return self.port
+    def wait_for_players(self):
+        logging.debug(f'Waiting for {self.max_players} players')
 
-    def handle_connection(self, player_connection, addr):
+        while True:
+            player_conn, addr = self.server.accept()
+            if self.__is_full():
+                player_conn.close()
+                continue
+
+            self.connect_new_player(player_conn, addr)
+
+    def connect_new_player(self, player_connection, addr) -> None:
         logging.debug(f'Accepted a connection from {addr}')
 
         if player_connection.recv(1024) != b'want connect':
+            player_connection.close()
             return
 
         player_connection.sendall(b'connected')
         player_data = player_connection.recv(1024)
 
-        player = Player(player_data)
+        player = Player(player_data.decode('utf-8'))
         player.store_connection(player_connection)
 
         existing_player = self.__get_player_in_game(player)
@@ -50,29 +62,35 @@ class GameServer:
             return
 
         if self.__is_full():
+            player_connection.close()
             return
 
         self.players.append(player)
+        self.players_connected += 1
 
-        msg = f'Player {player.name} has connected'
+        if self.__is_full():
+            logging.debug('Player 2/2 has connected')
+            self.start_game()
+            return
 
-        logging.debug(msg)
-        self.add_to_log(msg)
+        logging.debug('Player 1/2 has connected')
+        player.send_message('wait')
 
-        threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
+    def start_game(self):
+        logging.debug('Starting the game')
 
-    def wait_for_players(self):
-        logging.debug(f'Waiting for {self.max_players} players')
+        for i in range(self.players_connected):
+            for j in range(self.players_connected):
+                if i == j:
+                    continue
 
-        while True:
-            player_conn, addr = self.server.accept()
+                self.players[i].send_message(f'opponent:{self.players[j].name}')
 
-            self.handle_connection(player_conn, addr)
+        starting = self.players[0].name
 
-    def add_to_log(self, update: str):
-        self.log.append(str.encode(update))
-
-        self.send_updates_to_players()
+        for player in self.players:
+            player.send_message(f'start:{starting}')
+            threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
 
     def receive_updates_from_player(self, player: Player) -> None:
         while True:
@@ -81,50 +99,58 @@ class GameServer:
                 if not data:
                     break
 
-                action = f"Player {player.name} says: {data}"
+                action = data
 
                 logging.debug(action)
-                self.add_to_log(action)
+                self.add_to_log(Update(action, player))
             except ConnectionResetError:
                 player.store_connection(None)
+                self.players_connected -= 1
 
-                msg = f'Player {player.name} has disconnected. They have 60 seconds to reconnect.'
+                msg = f'Player {player.name} has disconnected.'
 
                 logging.debug(msg)
-                self.add_to_log(msg)
+                self.add_to_log(Update(msg, player))
 
                 return
 
         player.connection.close()
 
-    # functions to access certain players
+    def handle_reconnect(self, player: Player):
+        msg = f'Player {player.name} has reconnected'
+
+        logging.debug(msg)
+        self.add_to_log(Update(msg, player))
+
+        threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
+
+    def add_to_log(self, update: Update):
+        self.log.append(update)
+
+        self.send_updates_to_players()
+
+    def get_server_port(self) -> int:
+        return self.port
+
     def __get_player_in_game(self, target_player: Player) -> Player:
         for player in self.players:
             if player.name == target_player.name:
                 return player
 
-        return
+        return None
 
-    def __is_player_connected(self, target_player: Player):
+    def __is_player_connected(self, target_player: Player) -> bool:
         for player in self.players:
             if player.name == target_player.name:
                 return player.is_connected()
 
-        return
+        return False
 
     def __is_full(self):
-        return not (self.max_players - len(self.players)) # if full, max - len(players) will be 0, not 0 = True
-
-    def handle_reconnect(self, player: Player):
-        msg = f'Player {player.name} has reconnected'
-
-        logging.debug(msg)
-        self.add_to_log(msg)
-
-        threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
+        return self.max_players - self.players_connected <= 0
 
     def send_updates_to_players(self):
         for player in self.players:
-            if player.is_connected():
-                print(f'sending a message to player {player.name}')
-                player.connection.sendall(self.log[-1])
+            if self.log[-1].player != player:
+                if player.is_connected():
+                    player.send_message(self.log[-1].msg)
