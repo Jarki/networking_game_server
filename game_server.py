@@ -3,7 +3,7 @@ import threading
 import logging
 
 from player import Player
-from update import Update
+from update import Update, UpdateTypes
 
 
 class GameServer:
@@ -99,9 +99,14 @@ class GameServer:
                 if not data:
                     break
 
-                action = data
+                action: bytes = data
 
                 logging.debug(action)
+
+                if action.decode('utf-8').startswith('msg:'):
+                    self.add_to_log(Update(action, player, UpdateTypes.MESSAGE_UPDATE))
+                    continue
+
                 self.add_to_log(Update(action, player))
             except ConnectionResetError:
                 player.store_connection(None)
@@ -151,6 +156,9 @@ class GameServer:
 
     def send_updates_to_players(self):
         for player in self.players:
-            if self.log[-1].player != player:
+            if self.log[-1].type == UpdateTypes.MESSAGE_UPDATE:
+                if player.is_connected():
+                    player.send_message(self.log[-1].msg)
+            elif self.log[-1].player != player:
                 if player.is_connected():
                     player.send_message(self.log[-1].msg)
