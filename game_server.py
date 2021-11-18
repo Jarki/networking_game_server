@@ -92,11 +92,17 @@ class GameServer:
 
         starting = self.players[0].name
 
-        self.game = Game()
+        self.game = Game(self.players[0].name, self.players[1].name)
+        self.game.set_gameover_handler(self.end_game)
 
         for player in self.players:
             player.send_message(f'start:{starting}')
             threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
+
+    def end_game(self, winner):
+        for player in self.players:
+            player.send_message(f'winner:{winner}')
+            player.disconnect()
 
     def receive_updates_from_player(self, player: Player) -> None:
         while True:

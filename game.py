@@ -1,7 +1,12 @@
 class Game:
-    def __init__(self):
-        self.player1_points: int = 0
-        self.player2_points: int = 0
+    def __init__(self, player1_name, player2_name):
+        self.p1 = player1_name
+        self.p2 = player2_name
+
+        self.player_points = {
+            self.p1: 0,
+            self.p2: 0
+        }
 
         self.size = 22
         self.board: list[list[int]] = [[0] * self.size for i in range(self.size)]
@@ -9,20 +14,38 @@ class Game:
 
         self.player1_active = True
 
-    def toggle_active_player(self):
+        self.on_game_over = lambda x: x
+
+    def toggle_active_player(self) -> None:
         self.player1_active = not self.player1_active
 
-    def give_point(self):
+    def give_point(self) -> None:
         if self.player1_active:
-            self.player1_points += 1
+            self.player_points[self.p1] += 1
         else:
-            self.player2_points += 1
+            self.player_points[self.p2] += 1
 
-        print('Points:')
-        print(f'Player1: {self.player1_points}')
-        print(f'Player2: {self.player2_points}')
+        if self.is_game_over():
+            self.on_game_over(self.determine_winner())
 
-    def push_tile(self, pos: tuple[int, int]):
+    def determine_winner(self) -> str:
+        if self.player_points[self.p1] > self.player_points[self.p2]:
+            return self.p1
+        elif self.player_points[self.p1] < self.player_points[self.p2]:
+            return self.p2
+        else:
+            return ":draw:"
+
+    def set_gameover_handler(self, callback) -> None:
+        self.on_game_over = callback
+
+    def is_game_over(self) -> bool:
+        if self.player_points[self.p1] + self.player_points[self.p2] >= 60:
+            return True
+
+        return False
+
+    def push_tile(self, pos: tuple[int, int]) -> None:
         i, j = pos[0], pos[1]
 
         is_vertical = not self.board[i][j]
@@ -64,7 +87,7 @@ class Game:
 
         return -1
 
-    def generate_board(self, size=10):
+    def generate_board(self, size=10) -> None:
         cutout_num = 0
 
         self.size = size * 2 + 2
@@ -89,7 +112,7 @@ class Game:
 
                 self.board[i][j] = value
 
-    def __is_in_bounds(self, indexes: tuple):
+    def __is_in_bounds(self, indexes: tuple) -> bool:
         if (indexes[0] > 0 and indexes[1] > 0) and (indexes[1] < self.size - 1 and indexes[0] < self.size - 1):
             return True
 

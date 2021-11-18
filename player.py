@@ -16,7 +16,13 @@ class Player:
         logging.debug(f'New connection stored: {conn}')
         self.connection = conn
 
+    def disconnect(self):
+        self.connection.close()
+
     def send_message(self, msg):
+        if self.connection is None:
+            return
+
         if type(msg) == bytes:
             msg = msg.decode('utf-8')
 
