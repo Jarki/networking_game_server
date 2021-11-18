@@ -1,9 +1,11 @@
 import socket
 import threading
 import logging
+import re
 
 from player import Player
 from update import Update, UpdateTypes
+from game import Game
 
 
 class GameServer:
@@ -17,6 +19,8 @@ class GameServer:
 
         self.max_players = 2
         self.players_connected = 0
+
+        self.game = None
 
     # server functions
 
@@ -88,6 +92,8 @@ class GameServer:
 
         starting = self.players[0].name
 
+        self.game = Game()
+
         for player in self.players:
             player.send_message(f'start:{starting}')
             threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
@@ -106,6 +112,17 @@ class GameServer:
                 if action.decode('utf-8').startswith('msg:'):
                     self.add_to_log(Update(action, player, UpdateTypes.MESSAGE_UPDATE))
                     continue
+
+                pattern = re.compile('push\\([0-9]+, ?[0-9]+\\)')
+                string = action.decode('utf-8')
+
+                if pattern.match(string) is not None:
+                    # message looks like push(0,0)
+                    string = string.replace('push', '')  # remove the word push
+                    string = string[1:-1].split(',')  # remove round brackets and split
+                    string = map(lambda x: int(x), string)  # convert everything to int
+
+                    self.game.push_tile(tuple(string))  # make a tuple and update
 
                 self.add_to_log(Update(action, player))
             except ConnectionResetError:
