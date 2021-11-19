@@ -2,6 +2,7 @@ import socket
 import threading
 import logging
 import re
+import time
 
 from player import Player
 from update import Update, UpdateTypes
@@ -96,6 +97,7 @@ class GameServer:
         self.game = Game(self.players[0].name, self.players[1].name)
         self.game.set_gameover_handler(self.end_game)
 
+        time.sleep(1)  # doesn't work without this
         for player in self.players:
             player.send_message(f'start:{starting}')
             threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
