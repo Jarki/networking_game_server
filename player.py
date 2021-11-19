@@ -17,6 +17,7 @@ class Player:
         self.connection = conn
 
     def disconnect(self):
+        logging.debug(f'Player {self.name} disconnected')
         self.connection.close()
 
     def send_message(self, msg):

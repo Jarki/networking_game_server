@@ -19,6 +19,7 @@ class GameServer:
 
         self.max_players = 2
         self.players_connected = 0
+        self.players_want_to_end = 0
 
         self.game = None
 
@@ -119,6 +120,18 @@ class GameServer:
                     self.add_to_log(Update(action, player, UpdateTypes.MESSAGE_UPDATE))
                     continue
 
+                if action.decode('utf-8') == 'leave' or action.decode('utf-8') == 'unleave':
+                    if action.decode('utf-8') == 'leave':
+                        self.players_want_to_end += 1
+                    else:
+                        self.players_want_to_end -= 1
+
+                    self.add_to_log(Update(action.decode('utf-8'), player))
+
+                    if self.max_players == self.players_want_to_end:
+                        self.end_game(self.game.determine_winner())
+                    continue
+
                 pattern = re.compile('push\\([0-9]+, ?[0-9]+\\)')
                 string = action.decode('utf-8')
 
@@ -130,7 +143,7 @@ class GameServer:
 
                     self.game.push_tile(tuple(string))  # make a tuple and update
 
-                self.add_to_log(Update(action, player))
+                    self.add_to_log(Update(action, player))
             except ConnectionResetError:
                 player.store_connection(None)
                 self.players_connected -= 1
@@ -140,6 +153,8 @@ class GameServer:
                 logging.debug(msg)
                 self.add_to_log(Update(msg, player))
 
+                return
+            except ConnectionAbortedError:
                 return
 
         player.connection.close()
@@ -182,6 +197,7 @@ class GameServer:
             if self.log[-1].type == UpdateTypes.MESSAGE_UPDATE:
                 if player.is_connected():
                     player.send_message(self.log[-1].msg)
-            elif self.log[-1].player != player:
-                if player.is_connected():
-                    player.send_message(self.log[-1].msg)
+            else:
+                if self.log[-1].player != player:
+                    if player.is_connected():
+                        player.send_message(self.log[-1].msg)
