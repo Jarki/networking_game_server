@@ -36,3 +36,24 @@ class DBManager:
         engine.connect().execute(sqlalchemy.text(query_winner), name=p1)
         engine.connect().execute(sqlalchemy.text(query_winner), name=p2)
 
+    @staticmethod
+    def get_player_stats(name: str) -> tuple[int]:
+        engine = DBManager.__connect()
+
+        query = "SELECT wins, losses, draws FROM winloss.players " \
+                "WHERE name = :name"
+
+        result = engine.connect().execute(sqlalchemy.text(query), name=name).first()
+
+        if result is None:
+            return tuple([0, 0, 0])
+
+        stats: list[int] = []
+        for col in result:
+            if col is None:
+                stats.append(0)
+                continue
+
+            stats.append(col)
+
+        return tuple(stats)

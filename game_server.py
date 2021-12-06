@@ -76,6 +76,9 @@ class GameServer:
         self.players.append(player)
         self.players_connected += 1
 
+        player_stats = DBManager.get_player_stats(player.name)
+        player.send_message(f'stats:{player_stats[0]}:{player_stats[1]}:{player_stats[2]}')
+
         if self.__is_full():
             logging.debug('Player 2/2 has connected')
             self.start_game()
@@ -106,7 +109,7 @@ class GameServer:
             threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
 
     def handle_game_result(self, result: str) -> None:
-        if result == "draw":
+        if result == ":draw:":
             DBManager.record_draw(
                 self.players[0].name,
                 self.players[1].name
