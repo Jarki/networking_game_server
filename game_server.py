@@ -3,10 +3,12 @@ import threading
 import logging
 import re
 import time
+from typing import Optional
 
 from player import Player
 from update import Update, UpdateTypes
 from game import Game
+from dbmanager import DBManager
 
 
 class GameServer:
@@ -97,12 +99,28 @@ class GameServer:
         self.game = Game(self.players[0].name, self.players[1].name)
         self.game.set_gameover_handler(self.end_game)
 
-        time.sleep(1)  # doesn't work without this
+        time.sleep(1)
+
         for player in self.players:
             player.send_message(f'start:{starting}')
             threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
 
-    def end_game(self, winner):
+    def handle_game_result(self, result: str) -> None:
+        if result == "draw":
+            DBManager.record_draw(
+                self.players[0].name,
+                self.players[1].name
+            )
+            self.end_game(result)
+            return
+
+        winner = result
+        loser = self.__get_opponent(winner).name
+
+        DBManager.record_win(winner, loser)
+        self.end_game(winner)
+
+    def end_game(self, winner: str) -> None:
         for player in self.players:
             player.send_message(f'winner:{winner}')
             player.disconnect()
@@ -111,8 +129,6 @@ class GameServer:
         while True:
             try:
                 data = player.connection.recv(1024)
-                if not data:
-                    break
 
                 action: bytes = data
 
@@ -131,7 +147,9 @@ class GameServer:
                     self.add_to_log(Update(action.decode('utf-8'), player))
 
                     if self.max_players == self.players_want_to_end:
-                        self.end_game(self.game.determine_winner())
+                        winner = self.game.determine_winner()
+
+                        self.handle_game_result(winner)
                     continue
 
                 pattern = re.compile('push\\([0-9]+, ?[0-9]+\\)')
@@ -150,19 +168,26 @@ class GameServer:
                 player.store_connection(None)
                 self.players_connected -= 1
 
-                msg = f'Player {player.name} has disconnected.'
+                msg = f'disconnect:{player.name}'
 
                 logging.debug(msg)
                 self.add_to_log(Update(msg, player))
 
                 return
             except ConnectionAbortedError:
+                player.store_connection(None)
+                self.players_connected -= 1
+
+                msg = f'Player {player.name} has disconnected.'
+
+                logging.debug(msg)
+                self.add_to_log(Update(msg, player))
                 return
 
         player.connection.close()
 
-    def handle_reconnect(self, player: Player):
-        msg = f'Player {player.name} has reconnected'
+    def handle_reconnect(self, player: Player) -> None:
+        msg = f'reconnect:{player.name}'
 
         logging.debug(msg)
         self.add_to_log(Update(msg, player))
@@ -177,9 +202,16 @@ class GameServer:
     def get_server_port(self) -> int:
         return self.port
 
-    def __get_player_in_game(self, target_player: Player) -> Player:
+    def __get_player_in_game(self, target_player: Player) -> Optional[Player]:
         for player in self.players:
             if player.name == target_player.name:
+                return player
+
+        return None
+
+    def __get_opponent(self, target_player: str) -> Optional[Player]:
+        for player in self.players:
+            if player.name != target_player:
                 return player
 
         return None
