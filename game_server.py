@@ -1,6 +1,7 @@
 import socket
 import threading
 import logging
+import random
 import re
 import time
 from typing import Optional
@@ -23,6 +24,7 @@ class GameServer:
         self.max_players = 2
         self.players_connected = 0
         self.players_want_to_end = 0
+        self.first_move = ""
 
         self.game = None
 
@@ -32,6 +34,7 @@ class GameServer:
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind((host, port))
         self.server.listen()
+        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         return self.server.getsockname()[1]
 
@@ -76,8 +79,7 @@ class GameServer:
         self.players.append(player)
         self.players_connected += 1
 
-        player_stats = DBManager.get_player_stats(player.name)
-        player.send_message(f'stats:{player_stats[0]}:{player_stats[1]}:{player_stats[2]}')
+        self.send_player_stats(player)
 
         if self.__is_full():
             logging.debug('Player 2/2 has connected')
@@ -87,7 +89,11 @@ class GameServer:
         logging.debug('Player 1/2 has connected')
         player.send_message('wait')
 
-    def start_game(self):
+    def send_player_stats(self, player: Player) -> None:
+        player_stats = DBManager.get_player_stats(player.name)
+        player.send_message(f'stats:{player_stats[0]}:{player_stats[1]}:{player_stats[2]}')
+
+    def start_game(self) -> None:
         logging.debug('Starting the game')
 
         for i in range(self.players_connected):
@@ -97,10 +103,15 @@ class GameServer:
 
                 self.players[i].send_message(f'opponent:{self.players[j].name}')
 
-        starting = self.players[0].name
-
         self.game = Game(self.players[0].name, self.players[1].name)
-        self.game.set_gameover_handler(self.end_game)
+
+        starting = self.players[random.randint(0, 1)].name  # deciding who makes the first turn
+        self.game.set_active_player(starting)
+        self.first_move = starting
+
+        self.game.set_gameover_handler(self.handle_game_result)
+
+        self.game.reset_timer()
 
         time.sleep(1)
 
@@ -127,6 +138,9 @@ class GameServer:
         for player in self.players:
             player.send_message(f'winner:{winner}')
             player.disconnect()
+
+        self.server.shutdown(socket.SHUT_RDWR)
+        self.server.close()
 
     def receive_updates_from_player(self, player: Player) -> None:
         while True:
@@ -167,7 +181,7 @@ class GameServer:
                     self.game.push_tile(tuple(string))  # make a tuple and update
 
                     self.add_to_log(Update(action, player))
-            except ConnectionResetError:
+            except (ConnectionResetError, ConnectionAbortedError):
                 player.store_connection(None)
                 self.players_connected -= 1
 
@@ -176,15 +190,6 @@ class GameServer:
                 logging.debug(msg)
                 self.add_to_log(Update(msg, player))
 
-                return
-            except ConnectionAbortedError:
-                player.store_connection(None)
-                self.players_connected -= 1
-
-                msg = f'Player {player.name} has disconnected.'
-
-                logging.debug(msg)
-                self.add_to_log(Update(msg, player))
                 return
 
         player.connection.close()
@@ -195,7 +200,16 @@ class GameServer:
         logging.debug(msg)
         self.add_to_log(Update(msg, player))
 
+        self.send_player_stats(player)
+        player.send_message(f'start:{self.first_move}')
+        player.send_message(f'opponent:{self.__get_opponent(player.name).name}')
+
         threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
+
+        for entry in self.log:
+            player.send_message(entry.msg)
+
+        player.send_message(f'start:{self.game.get_active_player()}')
 
     def add_to_log(self, update: Update):
         self.log.append(update)

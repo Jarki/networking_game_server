@@ -1,3 +1,8 @@
+import threading
+import logging
+from typing import Optional
+
+
 class Game:
     def __init__(self, player1_name, player2_name):
         self.p1 = player1_name
@@ -14,7 +19,34 @@ class Game:
 
         self.player1_active = True
 
-        self.on_game_over = lambda x: x
+        self.on_game_over = lambda x: x  # this function is supposed to take 1 argument - player name
+
+        self.timer: Optional[threading.Timer] = None
+        self.timeout_time = 5
+
+    def set_active_player(self, player: str) -> None:
+        if player == self.p1:
+            self.player1_active = True
+        else:
+            self.player1_active = False
+
+    def get_active_player(self):
+        if self.player1_active:
+            return self.p1
+        else:
+            return self.p2
+
+    def reset_timer(self):
+        if self.timer is not None:
+            self.timer.cancel()
+
+        timeout_winner = self.p1
+        if self.player1_active:
+            timeout_winner = self.p2
+
+        logging.debug(f'Timing out, player is about to win {timeout_winner}')
+        self.timer = threading.Timer(self.timeout_time, self.on_game_over, args=[timeout_winner])
+        self.timer.start()
 
     def toggle_active_player(self) -> None:
         self.player1_active = not self.player1_active
@@ -72,6 +104,8 @@ class Game:
 
         if need_toggle:
             self.toggle_active_player()
+
+        self.reset_timer()
 
     def check_if_closed(self, i: int, j: int) -> int:
         if self.__is_in_bounds((i, j)):
