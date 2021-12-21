@@ -4,7 +4,7 @@ from typing import Optional
 
 
 class Game:
-    def __init__(self, player1_name, player2_name):
+    def __init__(self, player1_name, player2_name, size = 10):
         self.p1 = player1_name
         self.p2 = player2_name
 
@@ -13,7 +13,7 @@ class Game:
             self.p2: 0
         }
 
-        self.size = 22
+        self.size = size * 2 + 1
         self.board: list[list[int]] = [[0] * self.size for i in range(self.size)]
         self.generate_board()
 
@@ -121,17 +121,15 @@ class Game:
 
         return -1
 
-    def generate_board(self, size=10) -> None:
+    def generate_board(self) -> None:
         cutout_num = 0
 
-        self.size = size * 2 + 2
-
         for i in range(self.size):
-            if i < 11:
+            if i < self.size / 2:
                 if not i % 2:
                     cutout_num = i + 2
 
-            if i >= 11:
+            if i >= self.size / 2:
                 if i % 2:
                     cutout_num = i - 2 * abs(20 / 2 - i) + 1
             for j in range(self.size):
