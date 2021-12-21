@@ -2,11 +2,15 @@ import threading
 import logging
 from typing import Optional
 
+import point_limit
+
 
 class Game:
-    def __init__(self, player1_name, player2_name, size = 10):
+    def __init__(self, player1_name, player2_name, size=10):
         self.p1 = player1_name
         self.p2 = player2_name
+
+        self.point_limit = point_limit.calculate(int(size / 2))
 
         self.player_points = {
             self.p1: 0,
@@ -72,7 +76,7 @@ class Game:
         self.on_game_over = callback
 
     def is_game_over(self) -> bool:
-        if self.player_points[self.p1] + self.player_points[self.p2] >= 60:
+        if self.player_points[self.p1] + self.player_points[self.p2] >= self.point_limit:
             return True
 
         return False

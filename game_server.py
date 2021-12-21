@@ -28,6 +28,7 @@ class GameServer:
 
         self.game = None
 
+        self.board_size = -1
     # server functions
 
     def __create_server(self, host: str = '', port: int = 0) -> int:
@@ -87,13 +88,23 @@ class GameServer:
             return
 
         logging.debug('Player 1/2 has connected')
-        player.send_message('wait')
+        player.send_message('choose')
+
+        size: str = player.connection.recv(1024).decode('utf-8')
+        size = size.replace('size:', '')
+
+        self.board_size = int(size)
+        print('set board size')
+        print(self.board_size)
 
     def send_player_stats(self, player: Player) -> None:
         player_stats = DBManager.get_player_stats(player.name)
         player.send_message(f'stats:{player_stats[0]}:{player_stats[1]}:{player_stats[2]}')
 
     def start_game(self) -> None:
+        while self.board_size < 0:
+            time.sleep(1)
+
         logging.debug('Starting the game')
 
         for i in range(self.players_connected):
@@ -101,9 +112,10 @@ class GameServer:
                 if i == j:
                     continue
 
+                self.players[i].send_message(f'size:{self.board_size}')
                 self.players[i].send_message(f'opponent:{self.players[j].name}')
 
-        self.game = Game(self.players[0].name, self.players[1].name)
+        self.game = Game(self.players[0].name, self.players[1].name, self.board_size * 2)
 
         starting = self.players[random.randint(0, 1)].name  # deciding who makes the first turn
         self.game.set_active_player(starting)
