@@ -207,14 +207,16 @@ class GameServer:
         player.connection.close()
 
     def handle_reconnect(self, player: Player) -> None:
+        player.send_message(f'size:{self.board_size}')
         msg = f'reconnect:{player.name}'
 
         logging.debug(msg)
         self.add_to_log(Update(msg, player))
 
         self.send_player_stats(player)
-        player.send_message(f'start:{self.first_move}')
+
         player.send_message(f'opponent:{self.__get_opponent(player.name).name}')
+        player.send_message(f'start:{self.first_move}')
 
         threading.Thread(target=self.receive_updates_from_player, args=[player]).start()
 

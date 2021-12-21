@@ -26,7 +26,7 @@ class Game:
         self.on_game_over = lambda x: x  # this function is supposed to take 1 argument - player name
 
         self.timer: Optional[threading.Timer] = None
-        self.timeout_time = 5
+        self.timeout_time = 300
 
     def set_active_player(self, player: str) -> None:
         if player == self.p1:
