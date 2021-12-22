@@ -203,6 +203,8 @@ class GameServer:
                 self.add_to_log(Update(msg, player))
 
                 return
+            except TimeoutError:
+                continue
 
         player.connection.close()
 
